@@ -35,27 +35,6 @@ sbit LCD_D7 at GPIOA_ODR.B6;
 char text[16]    = {'*','*','*','*','W','E','L','C', 'O','M','E','*','*','*','*', '*'};
 char angle_Txt[16]    = {'*','*','*','*','W','E','L','C', 'O','M','E','*','*','*','*', '*'};
 
-long time_Out = 0;
-
-// Interrupt Interface
-// 120MHz / 4 divider
-void InitTimer2()
-{
-  RCC_APB1ENR.TIM2EN = 1;
-  TIM2_CR1.CEN = 0;
-  TIM2_PSC = 0;
-  TIM2_ARR = 59;
-  NVIC_IntEnable(IVT_INT_TIM2);
-  TIM2_DIER.UIE = 1;
-  TIM2_CR1.CEN = 1;
-}
-
-void Timer2_interrupt() iv IVT_INT_TIM2
-{
-  TIM2_SR.UIF = 0;
-  ++time_Out;
-}
-
 // User interface
 void LCD_setup()
 {
@@ -174,49 +153,15 @@ void convert_Angle()
 
 void display()
 {
-  if(time_Out>100000)
-  {
-    time_Out = 0;
     convert_Angle();
     Lcd_Out(1,1,angle_Txt);
-
-  }
 }
 
-
-void worker()
-{
-    Joystick_read();
-    display();
-}
-
-
-void InitTimer4()
-{
-  RCC_APB1ENR.TIM4EN = 1;
-  TIM4_CR1.CEN = 0;
-  TIM4_PSC = 9;
-  TIM4_ARR = DELAY_TIME;
-  NVIC_IntEnable(IVT_INT_TIM4);
-  TIM4_DIER.UIE = 1;
-  TIM4_CR1.CEN = 1;
-}
-
-void Timer4_interrupt() iv IVT_INT_TIM4
-{
-  worker();
-  TIM4_SR.UIF = 0;
-}
 
 void setup()
 {
   I2C2_Init();
   LCD_setup();
-  InitTimer2();
-}
-void initInterrupts()
-{
-  InitTimer4();
 }
 void welcomeMessage()
 {
@@ -227,13 +172,15 @@ void main()
 {
   setup();
   welcomeMessage();
-  Delay_ms(1000);
+  Delay_ms(500);
   Lcd_Cmd(_LCD_CLEAR);
   Delay_ms(100);
-  initInterrupts();
 
   while (1)
   {
-          asm wfi;
+      Joystick_read();
+      Delay_ms(50);
+      display();
+      Delay_ms(100);
   }
 }

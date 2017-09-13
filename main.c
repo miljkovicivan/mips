@@ -34,7 +34,7 @@ sbit LCD_D7 at GPIOA_ODR.B6;
 
 // LCD output
 char text[16]    = {'*','*','*','*','W','E','L','C', 'O','M','E','*','*','*','*', '*'};
-char angle_Txt[16]    = {'*','*','*','*','W','E','L','C', 'O','M','E','*','*','*','*', '*'};
+char output_text[16]    = {'X',':',' ','*','*','*',' ','Y', ':',' ','*','*','*',' ',' ', ' '};
 char error_text[16]    = {'*','*','*','*','E','R','R','O', 'R','*','*','*','*','*','*', '*'};
 
 unsigned mask = 4096;
@@ -100,22 +100,22 @@ void Joystick_read()
     i2c_err_Wr = 0;
 
     I2C2_Start();
-
-    i2c_err_Wr = I2C2_Write(0x40, &X_REGISTER, 1,END_MODE_RESTART);  // read X_axis
+//    error();
+    i2c_err_Wr = I2C2_Write(0x40, &X_REGISTER, 1, END_MODE_RESTART);  // read X_axis
 
     I2C2_Read(0x40, &pointer_Buffer, 1,END_MODE_STOP);  // read X_axis
-           error();
-    X = (signed short)(pointer_Buffer[0]);
-    if(X>=0)
-    {
-      X_output = (X*14.8/98)+12.5;
-    }
-    else
-    {
-      X_output = X + 98;
-      X_output = (X_output*5.2/98)+7.3;
-    }
 
+    X = (signed short)(pointer_Buffer[0]);
+
+    if (X < 0) {
+    output_text[2] = 0x2D; //minus sign
+    X = fabs(X);
+    } else {
+    output_text[2] = 0x2B; //minus sign
+    }
+    output_text[3] = CHAR_CONVERT_CONST+((int)(X/10));
+    output_text[4] = '.';
+    output_text[5] = CHAR_CONVERT_CONST+(X%10);
     // Y-coordinate
     pointer_Buffer[0] = 0x11;
     pointer_Buffer[1] = 0x00;
@@ -128,76 +128,27 @@ void Joystick_read()
     i2c_err_Wr = I2C2_Write(0x40, &Y_REGISTER, 1,END_MODE_RESTART);  // read Y_axis
     I2C2_Read(0x40, &pointer_Buffer, 1,END_MODE_STOP);  // read Y_axis
     Y = (signed short)(pointer_Buffer[0]);
+    
+    if (Y < 0) {
+    output_text[9] = 0x2D; //minus sign
+    Y = fabs(Y);
+    } else {
+    output_text[9] = 0x2B; //minus sign
+    }
+    output_text[10] = CHAR_CONVERT_CONST+((int)(Y/10));
+    output_text[11] = '.';
+    output_text[12] = CHAR_CONVERT_CONST+(Y%10);
 }
-
-
-void convert_Angle()
-{
-
-   int angle = 0;
-   Lcd_Chr(1,1,'A');
-   angle_Txt[12] = 0x20;
-   if(X_output >= MAX_READ - 1){
-      angle = 90;
-      angle_Txt[13] = CHAR_CONVERT_CONST+((int)(angle/10));
-      angle_Txt[14] = CHAR_CONVERT_CONST+(angle%10);
-    }
-    else   if(X_output == 12 || X_output == 13 || X_output == 14)
-    {
-       angle = 0;
-        angle_Txt[13] = 0x20;
-        angle_Txt[14] = CHAR_CONVERT_CONST+(angle%10);
-    }
-    else
-    if(X_output<=8)
-    {
-      angle = 90;
-      angle_Txt[12] = 0x2D;                    // minus sign
-      angle_Txt[13] = CHAR_CONVERT_CONST+((int)(angle/10));
-      angle_Txt[14] = CHAR_CONVERT_CONST+(angle%10);
-    }
-    else
-  if(X_output>=MIN_READ)
-  {
-
-    angle = (90*(X_output - MIN_READ))/ MIN_READ;
-    if(angle>=10)
-      angle_Txt[13] = CHAR_CONVERT_CONST+((int)(angle/10));
-    else
-      angle_Txt[13] = 0x20;
-    angle_Txt[14] = CHAR_CONVERT_CONST+(angle%10);
-  }
-  else
-  {
-    angle = 90-(X_output-7.3)*90/5.2;
-    if(angle == 3) angle = 0;
-    if(angle>=10)
-    {
-      if(angle == 0) angle_Txt[12] = 0x20;
-      else angle_Txt[12] = 0x2D;                    // minus sign
-      angle_Txt[13] = CHAR_CONVERT_CONST+((int)(angle/10));
-    }
-    else{
-      if(angle == 0) angle_Txt[13] = 0x20;
-      else angle_Txt[13] = 0x2D;
-    }
-
-    angle_Txt[14] = CHAR_CONVERT_CONST+(angle%10);
-  }
-
-}
-
 
 void display()
 {
-    convert_Angle();
-    Lcd_Out(1,1,angle_Txt);
+    Lcd_Out(1,1,output_text);
 }
 
 
 void setup()
 {
-  //InitTimer2();
+//  InitTimer2();
   I2C2_Init();
   LCD_setup();
 }
@@ -209,20 +160,12 @@ void main()
   welcomeMessage();
   Delay_ms(500);
   Lcd_Cmd(_LCD_CLEAR);
-  Delay_ms(100);
-
-
-  Joystick_read();
-  display();
 
   while (1)
   {
-      //Joystick_read();
-      //Delay_ms(500);
-      //display();
-      //Delay_ms(500);
-      //welcomeMessage();
-      //Delay_ms(500);
+      Joystick_read();
+      display();
+      Delay_ms(50);
       //Lcd_Cmd(_LCD_CLEAR);
   }
 }
@@ -236,14 +179,14 @@ void Timer2_interrupt() iv IVT_INT_TIM2 {
       //display();
       //Delay_ms(500);
 
-  if (t == 500 && s==0) {
+  if (t == 200 && s==0) {
      t=0;
      s=1;
-//     welcomeMessage();
-     //Joystick_read();
+     //welcomeMessage();
+     Joystick_read();
      display();
   }
-  if (t == 500 && s==1) {
+  if (t == 200 && s==1) {
      t=0;
      s=0;
      Lcd_Cmd(_LCD_CLEAR);

@@ -20,8 +20,6 @@ signed short X = 0;
 signed short Y = 0;
 signed short X_output = 0;
 signed short Y_output = 0;
-unsigned int debugTmp = 0;
-unsigned int doSonar = 0;
 
 // LCD module connections
 sbit LCD_RS at GPIOB_ODR.B9;
@@ -182,5 +180,9 @@ void main()
       Delay_ms(50);
       display();
       Delay_ms(100);
+      wellcomeMessage();
+      Lcd_Cmd(_LCD_CLEAR);
+      Delay_ms(100);
+
   }
 }

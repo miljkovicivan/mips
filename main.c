@@ -1,28 +1,18 @@
-#define UART_OUTPUT  0xFF
-#define DISP__Y_axis 0x00
-#define DELAY_TIME 59999
 #define CHAR_CONVERT_CONST 48
-#define MAX_READ 27
-#define MIN_READ 12
 
-// GLOBAL VARIABLES
-char inputChar[4];
-int outputChar = 0;
 int X_REGISTER = 0x10;
 int Y_REGISTER = 0x11;
 
 unsigned int t = 0;
 unsigned int s = 0;
 
-int i2c_err_Wr = 0;
-int i2c_err_Rd = 0;
+int i2c_err = 0;
+
 
 // X-coordinate
 int pointer_Buffer[2] =  {0x10, 0x00};
 signed short X = 1;
 signed short Y = 0;
-signed short X_output = 0;
-signed short Y_output = 0;
 
 // LCD module connections
 sbit LCD_RS at GPIOB_ODR.B9;
@@ -37,13 +27,23 @@ char text[16]    = {'*','*','*','*','W','E','L','C', 'O','M','E','*','*','*','*'
 char output_text[16]    = {'X',':',' ','*','*','*',' ','Y', ':',' ','*','*','*',' ',' ', ' '};
 char error_text[16]    = {'*','*','*','*','E','R','R','O', 'R','*','*','*','*','*','*', '*'};
 
+unsigned char uart_text[16] = {'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'};
+unsigned char ok[2] = {0x13, 0x10};
+unsigned char _at[2] = {'A', 'T'};
 unsigned mask = 4096;
 // User interface
 
-     void welcomeMessage()
+void welcomeMessage()
 {
   Lcd_Out(1,1,text);
   Lcd_Out(2,1,text);
+}
+
+void upaliDiodu() {
+GPIOE_ODR |= mask;
+}
+void ugasiDiodu() {
+GPIOE_ODR &= ~mask;
 }
 
 void error(){
@@ -55,7 +55,7 @@ void error(){
 void LCD_setup()
 {
   GPIO_Digital_Output(&GPIOB_BASE, _GPIO_PINMASK_8 | _GPIO_PINMASK_9);  // RS & EN
-  GPIO_Digital_Output(&GPIOE_BASE, _GPIO_PINMASK_5);                    // D4
+  GPIO_Digital_Output(&GPIOE_BASE, _GPIO_PINMASK_5 | _GPIO_PINMASK_12);                    // D4
   GPIO_Digital_Output(&GPIOB_BASE, _GPIO_PINMASK_0);                    // D5
   GPIO_Digital_Output(&GPIOA_BASE, _GPIO_PINMASK_5 | _GPIO_PINMASK_6);  // D6 & D7
 
@@ -93,18 +93,16 @@ void Joystick_read()
     pointer_Buffer[1] = 0x00;
     X = 0;
     Y = 0;
-    X_output = 0;
-    Y_output = 0;
 
-    i2c_err_Rd = 0;
-    i2c_err_Wr = 0;
+
+    i2c_err = 0;
 
     I2C2_Start();
-//    error();
-    i2c_err_Wr = I2C2_Write(0x40, &X_REGISTER, 1, END_MODE_RESTART);  // read X_axis
-
+    upaliDiodu();
+    i2c_err = I2C2_Write(0x40, &X_REGISTER, 1, END_MODE_RESTART);  // read X_axis
+    Delay_ms(10);
     I2C2_Read(0x40, &pointer_Buffer, 1,END_MODE_STOP);  // read X_axis
-
+    ugasiDiodu();
     X = (signed short)(pointer_Buffer[0]);
 
     if (X < 0) {
@@ -121,14 +119,16 @@ void Joystick_read()
     pointer_Buffer[1] = 0x00;
     X = 0;
 
-    i2c_err_Rd = 0;
-    i2c_err_Wr = 0;
+    i2c_err = 0;
 
     I2C2_Start();
-    i2c_err_Wr = I2C2_Write(0x40, &Y_REGISTER, 1,END_MODE_RESTART);  // read Y_axis
+    upaliDiodu();
+    i2c_err = I2C2_Write(0x40, &Y_REGISTER, 1,END_MODE_RESTART);  // read Y_axis
+    Delay_ms(10);
     I2C2_Read(0x40, &pointer_Buffer, 1,END_MODE_STOP);  // read Y_axis
+    ugasiDiodu();
     Y = (signed short)(pointer_Buffer[0]);
-    
+
     if (Y < 0) {
     output_text[9] = 0x2D; //minus sign
     Y = fabs(Y);
@@ -138,6 +138,7 @@ void Joystick_read()
     output_text[10] = CHAR_CONVERT_CONST+((int)(Y/10));
     output_text[11] = '.';
     output_text[12] = CHAR_CONVERT_CONST+(Y%10);
+
 }
 
 void display()
@@ -148,7 +149,7 @@ void display()
 
 void setup()
 {
-//  InitTimer2();
+  //InitTimer2();
   I2C2_Init();
   LCD_setup();
 }
@@ -158,15 +159,30 @@ void main()
 {
   setup();
   welcomeMessage();
-  Delay_ms(500);
+  Delay_ms(100);
   Lcd_Cmd(_LCD_CLEAR);
+
+
+//  UART2_Init(115200);//, _UART_8_BIT_DATA, _UART_NOPARITY, _UART_ONE_STOPBIT, &_GPIO_MODULE_USART2_PD56);
+//  Delay_ms(100);
+//  UART2_Write_Text(_at);
+//  UART2_Write(0x13);
+//  UART2_Write(0x10);
+//  upaliDiodu();
+//  while(!UART2_Data_Ready());
+//  ugasiDiodu();
+//  UART2_Read_Text(uart_text, ok, 10);
+//  Lcd_Out(1,1, uart_text);
+//
+//  while(1);
+
 
   while (1)
   {
       Joystick_read();
       display();
-      Delay_ms(50);
-      //Lcd_Cmd(_LCD_CLEAR);
+      Delay_ms(100);
+      Lcd_Cmd(_LCD_CLEAR);
   }
 }
 
@@ -174,23 +190,18 @@ void Timer2_interrupt() iv IVT_INT_TIM2 {
   TIM2_SR.UIF = 0;
   t+=10;
 
-  //Joystick_read();
-      //Delay_ms(500);
-      //display();
-      //Delay_ms(500);
-
-  if (t == 200 && s==0) {
+  if (t == 2000 && s==0) {
      t=0;
-     s=1;
+//     s=1;
      //welcomeMessage();
-     Joystick_read();
-     display();
+//     Joystick_read();
+//     display();
   }
-  if (t == 200 && s==1) {
-     t=0;
-     s=0;
-     Lcd_Cmd(_LCD_CLEAR);
-     //Joystick_read();
-  }
+//  if (t == 1000 && s==1) {
+//     t=0;
+//     s=0;
+//     Lcd_Cmd(_LCD_CLEAR);
+//
+//  }
   //Enter your code here
 }
